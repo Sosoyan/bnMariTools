@@ -20,7 +20,7 @@ icon_path = mari.resources.path('ICONS')
 imgFormats = mari.images.supportedWriteFormats()
 
 ## Defaults ##
-defaultFormat = 'tif'
+defaultFormat = 'exr'
 defaultTemplate = '$ENTITY_$CHANNEL.$UDIM'
 
 def selectPatch(object, udim):
@@ -39,7 +39,7 @@ def sceneData(mode):
 	udimList = [(str(patch.udim())) for patch in patchList]
 	bitDepth = channel.depth()
 	resolution = channel.width()
-	
+
 	if mode == 'geo':
 		return geo.name()
 	elif mode == 'chan':
@@ -50,7 +50,7 @@ def sceneData(mode):
 		return bitDepth
 	elif mode == 'res':
 		return resolution
-	
+
 def report(reportList, path):
 		'''Report log for complete exports'''
 		print '\n---------------Export Report------------------'
@@ -65,7 +65,7 @@ def report(reportList, path):
 			print 'UDIMs exported:\n%s' % [str(udim) for udim in udims]
 			print 'Elapsed Time: %s' % time
 			print '----------------------------------------------\n'
-	
+
 def exportMaps(objDict, path, format, template):
 	'''Exports maps from dictionary supplied by GUI'''
 	## Missing options
@@ -75,20 +75,20 @@ def exportMaps(objDict, path, format, template):
 	elif not path:
 		mari.utils.message('No export path set')
 		return
-	
+
 	## Report data
 	reportList = []
-	
+
 	## Progress maximum
 	maxStep = 0
 	for x in objDict:
 		for i in objDict[x]:
 			maxStep += 1
-	
+
 	# Progress Dialog
 	progressDiag = ProgressDialog(maxStep)
 	progressDiag.show()
-	
+
 	progStep = 0
 	startJobTime = time.time()
 	for object in objDict:
@@ -98,14 +98,14 @@ def exportMaps(objDict, path, format, template):
 			udims = objDict[object][channel]
 			uvs = [(int(x)-1001) for x in udims]
 			file_template = '%s/%s.%s' % (path, template, format)
-			
+
 			## Progress settings
 			progressDiag.label.setText('Exporting %s\nUDIM Count: %d' % (channel, len(uvs)))
 			mari.app.processEvents()
 			if progressDiag.breakBake == True:
 				progressDiag.close()
 				return
-			
+
 			## Export
 			startBakeTime = time.time()
 			if len(mariChan.layerList()) > 1:
@@ -115,20 +115,20 @@ def exportMaps(objDict, path, format, template):
 			endBakeTime = time.time()
 			elapsedBakeTime = endBakeTime - startBakeTime
 			elapsedBakeTime = str(datetime.timedelta(seconds=elapsedBakeTime))
-			
+
 			## Report
 			reportList.append([object, channel, udims, elapsedBakeTime])
-			
+
 			## Progress step
 			progStep += 1
 			progressDiag.pbar.setValue(progStep)
-		
+
 	endJobTime = time.time()
 	elapsedJobTime = endJobTime - startJobTime
 	elapsedJobTime = str(datetime.timedelta(seconds=elapsedJobTime))
 	report(reportList, path)
 	mari.utils.message('Exporting finished.\nElapsed time: %s' % elapsedJobTime)
-	
+
 class ProgressDialog(QtGui.QDialog):
 	'''progress thing'''
 	def __init__(self, maxStep):
@@ -148,11 +148,11 @@ class ProgressDialog(QtGui.QDialog):
 	#--# Progress GUI
 		layout.addWidget(self.label)
 		layout.addWidget(self.pbar)
-	
+
 	def status(self):
 		if self.pbar.value == self.pbar.maximum:
 			self.close()
-	
+
 	def keyPressEvent(self, e):
 		if e.key() == QtCore.Qt.Key_Escape:
 			self.breakBake = True
@@ -198,6 +198,7 @@ class ExportQtGui(QtGui.QWidget):
 		self.addBtn = QtGui.QToolButton(self)
 		self.removeBtn = QtGui.QToolButton(self)
 		self.clearBtn = QtGui.QToolButton(self)
+		self.addAllBtn = QtGui.QToolButton(self)
 		self.browseBtn = QtGui.QPushButton('Browse')
 		self.exportBtn = QtGui.QPushButton('Export')
 		self.formatCombo = QtGui.QComboBox()
@@ -210,11 +211,13 @@ class ExportQtGui(QtGui.QWidget):
 		self.addBtn.setIcon(QtGui.QIcon('%s/Plus.png' % icon_path))
 		self.removeBtn.setIcon(QtGui.QIcon('%s/Minus.png' % icon_path))
 		self.clearBtn.setIcon(QtGui.QIcon('%s/Quit.png' % icon_path))
+		self.addAllBtn.setIcon(QtGui.QIcon('%s/AddObject.png' % icon_path))
 	#--# Populate Layouts
 		layoutH1_wdg.addWidget(self.exportList)
 		layoutH2_wdg.addWidget(self.addBtn)
 		layoutH2_wdg.addWidget(self.removeBtn)
 		layoutH2_wdg.addWidget(self.clearBtn)
+		layoutH2_wdg.addWidget(self.addAllBtn)
 		layoutH2_wdg.addStretch()
 		layoutH3_wdg.addWidget(self.exportLabel)
 		layoutH3_wdg.addWidget(self.exportLn)
@@ -224,7 +227,7 @@ class ExportQtGui(QtGui.QWidget):
 		layoutH4_wdg.addWidget(self.formatLabel)
 		layoutH4_wdg.addWidget(self.formatCombo)
 		layoutH5_wdg.addWidget(self.exportBtn)
-		## Final 
+		## Final
 		layoutV1_main.addWidget(self.mainGroup)
 		layoutV1_main.addWidget(self.optionGroup)
 	#--# StyleSheets
@@ -237,6 +240,7 @@ class ExportQtGui(QtGui.QWidget):
 		self.addBtn.connect("clicked()", self.addUDIM)
 		self.removeBtn.connect("clicked()", lambda: self.manageTree(remove=True))
 		self.clearBtn.connect("clicked()", self.clear)
+		self.addAllBtn.connect("clicked()", self.addAllObjects)
 		self.browseBtn.connect("clicked()", self.getExportPath)
 		self.exportBtn.connect("clicked()", self.export)
 		self.deleteKey.connect("activated()", lambda: self.manageTree(remove=True))
@@ -244,11 +248,12 @@ class ExportQtGui(QtGui.QWidget):
 	#--# Init
 		self.init()
 		self.setHeader()
-		
+
 	def init(self):
 		self.formatCombo.addItems(imgFormats)
 		self.formatCombo.setCurrentIndex(self.formatCombo.findText(defaultFormat, 0))
-		
+		self.formatCombo.findText(defaultFormat, 0)
+
 	def setHeader(self):
 		'''Configures header'''
 		headerTitles = ['Name', 'Count', 'Depth', 'Size']
@@ -260,12 +265,33 @@ class ExportQtGui(QtGui.QWidget):
 		trickedout.setTextAlignment(1, 0x0004)
 		trickedout.setTextAlignment(2, 0x0004)
 		self.resize()
-	
+
 	def resize(self):
 		'''Resizes tree columns'''
 		for column in range(self.exportList.columnCount):
 			self.exportList.resizeColumnToContents(column)
-	
+
+	def addAllObjects(self):
+		'''Adds all objects based on the current channel of
+		   the selected object including all the udims'''
+		objList = mari.geo.list()
+		geo = mari.geo.current()
+		currentChannelName = geo.currentChannel().name()
+
+		for obj in objList:
+			mari.geo.setCurrent(obj)
+			currentChannel = obj.channel(currentChannelName)
+			obj.setCurrentChannel(currentChannel)
+			patchList = obj.patchList()
+
+			for patch in patchList:
+				currentPatch = obj.patch(patch.uvIndex())
+				currentPatch.setSelected(True)
+				self.addUDIM()
+				currentPatch.setSelected(False)
+
+		mari.geo.setCurrent(geo)
+
 	def addObject(self):
 		'''Adds Object Items'''
 		geo = sceneData('geo')
@@ -283,7 +309,7 @@ class ExportQtGui(QtGui.QWidget):
 			self.exportList.insertTopLevelItems(0, geo_items)
 			objectItem.setExpanded(True)
 			return objectItem
-	
+
 	def addChannel(self):
 		'''Adds Channel Items'''
 		parent = self.addObject()
@@ -300,7 +326,7 @@ class ExportQtGui(QtGui.QWidget):
 					return chanItem
 		except:
 			pass
-		
+
 		## Create and Build Channel items
 		chanItem = QtGui.QTreeWidgetItem([channel, '', bitDepth, resolution])
 		chanItem.setTextAlignment(1, 0x0004)
@@ -310,7 +336,7 @@ class ExportQtGui(QtGui.QWidget):
 		chan_items.append(chanItem)
 		parent.insertChildren(0, chan_items)
 		return chanItem
-	
+
 	def addUDIM(self):
 		'''Adds UDIM to list. Note: chain trigger, this function builds everything,
 		Nothing will be built if no UDIM selected.
@@ -319,12 +345,12 @@ class ExportQtGui(QtGui.QWidget):
 		## Exit if no UDIM selected
 		if not selected_udim:
 			return
-		
+
 		parent = self.addChannel()
 		exists_udim = []
 		add_udim = []
 		udim_items = []
-		
+
 		## Check for existing
 		try:
 			for index in range(parent.childCount()):
@@ -335,7 +361,7 @@ class ExportQtGui(QtGui.QWidget):
 					add_udim.append(patch)
 		except:
 			pass
-		
+
 		## Create and Build UDIM items
 		for patch in add_udim:
 			udimItem = QtGui.QTreeWidgetItem([patch, '', '', ''])
@@ -343,37 +369,37 @@ class ExportQtGui(QtGui.QWidget):
 			udimItem.setData(0, 32, 'UDIM')
 			udim_items.append(udimItem)
 		parent.insertChildren(0, udim_items)
-		
+
 		self.udimCount()
-		
+
 		## Resize
 		self.resize()
-	
+
 	def udimCount(self):
 		for index in range(self.exportList.topLevelItemCount):
 			objectItem = self.exportList.topLevelItem(index)
-			
+
 			for index in range(objectItem.childCount()):
 				chanItem = objectItem.child(index)
 				chanItem.setText(1, chanItem.childCount())
-	
+
 	def clear(self):
 		'''Clears entire tree'''
 		## Clear & Resize
 		self.exportList.clear()
 		self.resize()
-	
+
 	def getExportPath(self):
 		'''Define export path'''
 		exportDirDialog = ExportDialog()
 		if exportDirDialog.exec_():
 			browsedExportPath = exportDirDialog.directory().path()
 			self.exportLn.setText(browsedExportPath)
-	
+
 	def manageTree(self, remove=False, pick=False):
 		treeWidget=self.exportList
 		selectedItems = treeWidget.selectedItems()
-		
+
 		for item in selectedItems:
 			#Objects
 			if item.data(0,32) == 'OBJECT':
@@ -401,11 +427,11 @@ class ExportQtGui(QtGui.QWidget):
 					selectPatch(objectName, udimName)
 		if remove:
 			self.resize()
-		
+
 	def getExportDict(self):
 		treeWidget=self.exportList
 		exportDict = {}
-		
+
 		## Object ITEMS
 		for objIndex in range(treeWidget.topLevelItemCount):
 			object = treeWidget.topLevelItem(objIndex)
@@ -421,13 +447,13 @@ class ExportQtGui(QtGui.QWidget):
 					udim = channel.child(udimIndex)
 					udimName = udim.text(0)
 					udim_list.append(udimName)
-				
+
 				## Channel Dict
 				channelDict[channelName] = udim_list
-				
+
 			## Object Dict
 			exportDict[objectName] = channelDict
-		
+
 		return exportDict
 
 	def export(self):
@@ -443,6 +469,15 @@ class ExportQtGui(QtGui.QWidget):
 ## Mari UI Init ##
 ##-------------------------------------------------------------------------------------------------
 exportUI =  ExportQtGui()
+
+# # Unmark for interactive running
+# if mari.palettes.find('bnExporter') != None:
+# 	ui = mari.palettes.remove('bnExporter')
+#
+# ui = mari.palettes.create('bnExporter', exportUI)
+# ui.show()
+
+# Mark for interactive running
 exportUI.setDisabled(True)
 mari.palettes.create('bnExporter', exportUI)
 exportPalette = mari.actions.find('/Mari/Palettes/bnExporter')
